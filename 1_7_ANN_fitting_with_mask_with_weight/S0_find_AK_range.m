@@ -8,7 +8,7 @@ Last update: 2021/01/12
 clc;clear;close all;
 
 %% param
-subject_name_arr={'ZJ'}; % the name of the subjects
+subject_name_arr={'KB'}; % the name of the subjects
 g=0.9; % g for L1,2,4
 target_spec_wl=(700:900)';
 fitting_wl_tr=810;

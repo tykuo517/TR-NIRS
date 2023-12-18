@@ -55,8 +55,8 @@ Ubound=[A_Krange.Ubound mua_param_Ubound];
 % end
 
 % load ANN model
-load(fullfile(model_dir,['ZJ_cw_model.mat'])); % cw_net, cw_param_range
-load(fullfile(model_dir,['ZJ_tr_model.mat'])); % tr_net, tr_param_range
+% load(fullfile(model_dir,['ZJ_cw_model.mat'])); % cw_net, cw_param_range
+% load(fullfile(model_dir,['ZJ_tr_model.mat'])); % tr_net, tr_param_range
 
 %% generate the init value array
 fprintf('Generating init value: \n');
@@ -92,5 +92,3 @@ for init_i=1:num_init_spec
 end
 
 save(fullfile(output_dir,'init_value_arr.mat'),'init_value_arr');
-
-progress('_end');

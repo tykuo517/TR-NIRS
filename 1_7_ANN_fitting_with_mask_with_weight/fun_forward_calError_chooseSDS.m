@@ -1,4 +1,4 @@
-    %{
+%{
 Using the pre-simulated ANN to forward spectrum, and compare the result to the target
 only consider the error of choosed SDS
 
@@ -8,49 +8,55 @@ Last update: 2023/08/21
 
 function output=fun_forward_calError_chooseSDS(param_arr)
     global testing_index output_folder target_spec orig_target_spec target_dtof final fitRoute_txt fitRoute_csv times;
-    global lambda fitting_wl_tr num_SDS_cw num_SDS_tr SDS_choosed_cw SDS_choosed_tr SDS_sim_correspond_cw SDS_sim_correspond_tr num_gate gate_choosed gate_sim_correspond use_min_disk mask weight;  
+    global lambda cw_flag tr_flag fitting_wl_tr num_SDS_cw num_SDS_tr SDS_choosed_cw SDS_choosed_tr SDS_sim_correspond_cw SDS_sim_correspond_tr num_gate gate_choosed gate_sim_correspond use_min_disk mask weight;  
 
     %% Forward the spec
     [OP_arr,~]=fun_param_to_mu(param_arr,0);
-    % for CW
-    ann_spec=fun_ANN_forward(OP_arr,0);
-    ann_spec=ann_spec(:,SDS_sim_correspond_cw); % only use the SDS that are in target spectrum
-    
-    % for TR
-    OP_arr_tr=interp1(lambda,OP_arr,fitting_wl_tr,'pchip');
-    ann_dtof_=fun_ANN_forward(OP_arr_tr,1);
-    
-    for i=1:num_SDS_tr
-        ann_dtof(:,i)=ann_dtof_((i-1)*num_gate+1:(i-1)*num_gate+num_gate)';
+
+    if cw_flag
+        ann_spec=fun_ANN_forward(OP_arr,0);
+        ann_spec=ann_spec(:,SDS_sim_correspond_cw); % only use the SDS that are in target spectrum
     end
-    ann_dtof=ann_dtof(:,SDS_sim_correspond_tr); % only use the SDS that are in target spectrum
     
+    if tr_flag
+        OP_arr_tr=interp1(lambda,OP_arr,fitting_wl_tr,'pchip');
+        ann_dtof_=fun_ANN_forward(OP_arr_tr,1);
+        
+        for i=1:num_SDS_tr
+            ann_dtof(:,i)=ann_dtof_((i-1)*num_gate+1:(i-1)*num_gate+num_gate)';
+        end
+        ann_dtof=ann_dtof(:,SDS_sim_correspond_tr); % only use the SDS that are in target spectrum
+    end
     
     %% Calculate error
-    % for CW
-    SDS_error=sqrt(mean((ann_spec./target_spec-1).^2,1));
-    error(1)=sqrt(mean(SDS_error(SDS_choosed_cw).^2));
-    error(1)=error(1)*weight(1)/sum(weight);
+    if cw_flag
+        SDS_error=sqrt(mean((ann_spec./target_spec-1).^2,1));
+        error(1)=sqrt(mean(SDS_error(SDS_choosed_cw).^2));
+        error(1)=error(1)*weight(1)/sum(weight);
+    else
+        SDS_error=NaN*ones(1,num_SDS_cw);
+        error(1)=NaN;
+    end
     
-    % for TR
-    select_gate=sum(mask,1);
-    temp_SDS_error=sqrt((ann_dtof./target_dtof-1).^2);
-    temp_SDS_error=temp_SDS_error.*mask;
-    temp_SDS_error=sqrt(sum(temp_SDS_error.^2,1)./select_gate);
+    if tr_flag
+        select_gate=sum(mask,1);
+        temp_SDS_error=sqrt((ann_dtof./target_dtof-1).^2);
+        temp_SDS_error=temp_SDS_error.*mask;
+        temp_SDS_error=sqrt(sum(temp_SDS_error.^2,1)./select_gate);
 
-    SDS_error(end+1:end+num_SDS_tr)=temp_SDS_error;
-
-    error(2)=sqrt(mean(temp_SDS_error(SDS_choosed_tr).^2));
-    error(2)=error(2)*weight(2)/sum(weight);
-    
+        SDS_error(end+1:end+num_SDS_tr)=temp_SDS_error;
+        error(2)=sqrt(mean(temp_SDS_error(SDS_choosed_tr).^2));
+        error(2)=error(2)*weight(2)/sum(weight);
+    else
+        SDS_error(end+1:end+num_SDS_tr)=NaN*ones(1,num_SDS_tr);
+        error(2)=NaN;
+    end
     
     % total error
     if sum(isnan(error))==0
         choosed_error=sum(error);
-%         choosed_error=sqrt(mean(error.^2));
     else
         choosed_error=sum(error(~isnan(error)));
-%         choosed_error=mean(error(~isnan(error)));
     end
     SDS_error(end+1:end+3)=[error choosed_error];
     
@@ -116,8 +122,12 @@ function output=fun_forward_calError_chooseSDS(param_arr)
             close all;
         end
         
-        save(fullfile(output_folder,'fitted_spec.txt'),'ann_spec','-ascii','-tabs');
-        save(fullfile(output_folder,'fitted_dtof.txt'),'ann_dtof','-ascii','-tabs');
+        if cw_flag
+            save(fullfile(output_folder,'fitted_spec.txt'),'ann_spec','-ascii','-tabs');
+        end
+        if tr_flag
+            save(fullfile(output_folder,'fitted_dtof.txt'),'ann_dtof','-ascii','-tabs');
+        end
         
         save(fullfile(output_folder,'fitted_mu.txt'),'OP_arr','-ascii','-tabs');
         fprintf('Total fitting iteration: %d\n',times);

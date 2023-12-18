@@ -11,7 +11,7 @@ clc;clear;close all;
 global lambda fitting_wl_tr Lbound Ubound cw_net tr_net cw_param_range tr_param_range;
 
 %% param
-subject_name_arr={'KB'};%,'WH','WW'
+subject_name_arr={'KB','WH','ZJ'};%,'WH','WW'
 num_anser_to_generate=15; % number of target spec (true answer)
 num_error_to_generate=15; % number of adding noise to the same, the first one will have no error
 
@@ -19,8 +19,8 @@ num_SDS_cw=6;
 num_SDS_tr=5;
 num_gate=10;
 
-% SDS_error_arr=[2 2.3 0.75 4 1 2]; % in %, the error (CV) of each SDS
-SDS_error_arr=[3 4.2 5.1 5.2 5.4 12.1]; % in %, the error (CV) of each SDS
+SDS_error_arr=[2 2.3 0.75 4 1 2]; % in %, the error (CV) of each SDS
+% SDS_error_arr=[3 4.2 5.1 5.2 5.4 12.1]; % in %, the error (CV) of each SDS
 
 % load('CV_10_11.mat');
 load('../1_3_MCX_lookup_table/results/cv_1E11'); % cv_value
@@ -42,7 +42,7 @@ Ubound=     [150     1       150     1      200      1       0.003 ];
 % Ubound=     [150     1      200      1    ];
 
 model_dir='model_arrange';
-A_Krange=load(fullfile(model_dir,'A_Krange_arr_KB.mat'));
+A_Krange=load(fullfile(model_dir,['A_Krange_arr_ZJ.mat']));
 Lbound=[A_Krange.Lbound Lbound]; % add the bound for A, K for L1, 2, 4
 Ubound=[A_Krange.Ubound Ubound];
 
@@ -60,7 +60,7 @@ mkdir(fullfile(output_dir,'answers'));
 
 %% generate the target answer using sbj 1 (small mus range)
 
-sbj=1;
+sbj=2;
 % load ANN model, for the param range
 load(fullfile(model_dir,[subject_name_arr{sbj} '_cw_model.mat'])); % cw_net, cw_param_range
 load(fullfile(model_dir,[subject_name_arr{sbj} '_tr_model.mat'])); % tr_net, tr_param_range
@@ -93,6 +93,9 @@ save(fullfile(output_dir,'answers','param_answer_arr.txt'),'param_answer_arr','-
 fprintf('Generating target spec.\n');
 for sbj=1:length(subject_name_arr)
     fprintf('\tSubject %s\n',subject_name_arr{sbj});
+    
+    load(fullfile(model_dir,[subject_name_arr{sbj} '_cw_model.mat'])); % cw_net, cw_param_range
+    load(fullfile(model_dir,[subject_name_arr{sbj} '_tr_model.mat'])); % tr_net, tr_param_range
     
     for target_i=1:num_anser_to_generate
         % generate OP

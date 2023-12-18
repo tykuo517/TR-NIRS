@@ -7,67 +7,94 @@ Last update: 2021/01/21
 
 clc;clear;close all;
 
-global lambda fitting_wl_tr Lbound Ubound cw_net cw_param_range tr_net tr_param_range mask weight;
+global lambda fitting_wl_tr Lbound Ubound cw_flag cw_net cw_param_range tr_flag tr_net tr_param_range mask weight;
 global target_spec orig_target_spec target_dtof;
 global num_SDS_cw num_SDS_tr SDS_choosed_cw SDS_choosed_tr A_Krange SDS_sim_correspond_cw SDS_sim_correspond_tr num_gate gate_choosed gate_sim_correspond;
 
 %% param
-subject_name_arr={'KB'}; %,'WH','WW'
+subject_name_arr={'KB','WH','ZJ'}; %,'WH','ZJ'
 num_anser_to_generate=10; % number of target spec (true answer)
-num_error_to_generate=15; % number of adding noise to the same, the first one will have no error
+num_error_to_generate=1; % number of adding noise to the same, the first one will have no error
 times_to_fitting=20; % number of fitting using different init value
-input_dir='test_fitting_2023-11-02-11-10-06'; % the folder containing the generated target spectrum
+input_dir='test_fitting_2023-12-12-11-59-43'; % the folder containing the generated target spectrum
 
-% CW setting
-num_SDS_cw=6; % how many SDS are in the target spectrum
-SDS_choosed_cw=[]; % the SDS chosen to fitted in the target spectrum
-SDS_sim_correspond_cw=[1 2 3 4 5 6]; % the SDS index in the simulated spectrum corresponding to each SDS in the target spectrum, SDS_sim_correspond(x)=y means 'measure x = sim y'
-
-% TR setting
-num_SDS_tr=5;
-SDS_choosed_tr=[2 3 4]; % the SDS chosen to fitted in the target spectrum 
-SDS_sim_correspond_tr=[1 2 3 4 5]; % the SDS index in the simulated spectrum corresponding to each SDS in the target spectrum, SDS_sim_correspond(x)=y means 'measure x = sim y'
-
-choose_gate_manually=0;
-num_gate=10;
-gate_choosed=[2 3 4];
-gate_sim_correspond=[1 2 3 4 5 6 7 8 9 10];
 
 fitting_wl_file='fitting_wl.txt'; % the file in the epsilon folder containing the fitting wavelength
 fitting_wl_tr=810;
 
-use_weight=0; % weight betwwen CW and TR
-use_gate_weight=1; % weight between gate
-weight_SDS=[2 3 4];
-weight_gate=[7];
-weight_value=2;
-
 model_dir='model_arrange';
+
+%% CW setting
+cw_flag=0;
+num_SDS_cw=6; % how many SDS are in the target spectrum
+
+if cw_flag
+    SDS_choosed_cw=[1]; % the SDS chosen to fitted in the target spectrum
+    SDS_sim_correspond_cw=[1 2 3 4 5 6]; % the SDS index in the simulated spectrum corresponding to each SDS in the target spectrum, SDS_sim_correspond(x)=y means 'measure x = sim y'
+end
+
+%% TR setting
+tr_flag=1;
+num_SDS_tr=5;
+num_gate=10;
+
+% SDS
+if tr_flag
+    SDS_choosed_tr=[1]; % the SDS chosen to fitted in the target spectrum 
+    SDS_sim_correspond_tr=[1 2 3 4 5]; % the SDS index in the simulated spectrum corresponding to each SDS in the target spectrum, SDS_sim_correspond(x)=y means 'measure x = sim y'
+
+    % choose gate or not
+    choose_gate_flag=1; % =0: fitted the gate within 50%~0.01% max value
+    num_gate=10;
+    gate_choosed=[1 2]; % if choose_gate_manually==1
+    gate_sim_correspond=[1 2 3 4 5 6 7 8 9 10];
+
+    % use gate weight or not
+    gate_weight_flag=0; % weight between gate
+    %if use_gate_weight==1
+    weight_SDS=[2 3 4];
+    weight_gate=[7];
+    weight_value=2;
+end
+
+%% CW and TR weight setting
+sys_weight_flag=0; % weight between CW and TR
+
 
 %% init
 % Named output directory
-output_dir='fitting_SDS';
-for s=1:length(SDS_choosed_cw)
-    output_dir=[output_dir num2str(SDS_choosed_cw(s))];
-end
-output_dir=[output_dir '_'];
-for s=1:length(SDS_choosed_tr)
-    output_dir=[output_dir num2str(SDS_choosed_tr(s))];
-end
-if choose_gate_manually==1
-    output_dir=[output_dir '_gate'];
-    for g=1:length(gate_choosed)
-        output_dir=[output_dir num2str(gate_choosed(g))];
+output_dir='fitting';
+if cw_flag
+    output_dir=[output_dir '_cw'];
+    for s=1:length(SDS_choosed_cw)
+        output_dir=[output_dir num2str(SDS_choosed_cw(s))];
     end
 end
-if use_weight==1
-    output_dir=[output_dir '_sw'];
-end
-if use_gate_weight==1
-    for w=1:length(weight_gate)
-        output_dir=[output_dir '_gw_' num2str(weight_gate(w))];
+
+if tr_flag
+    output_dir=[output_dir '_tr'];
+    for s=1:length(SDS_choosed_tr)
+        output_dir=[output_dir num2str(SDS_choosed_tr(s))];
+    end
+    
+    if choose_gate_flag
+        output_dir=[output_dir '_gate'];
+        for g=1:length(gate_choosed)
+            output_dir=[output_dir num2str(gate_choosed(g))];
+        end
+    end
+    
+    if gate_weight_flag==1
+        for w=1:length(weight_gate)
+            output_dir=[output_dir '_gw_' num2str(weight_gate(w))];
+        end
     end
 end
+
+if cw_flag && tr_flag && sys_weight_flag
+    output_dir=[output_dir '_sw']; % weight between different system (CW and TR)
+end
+
 
 
 %                 hc_1    sto2_1 hc_2    sto2_2 hc_4     sto2_4   mel
@@ -132,37 +159,38 @@ for sbj=1:length(subject_name_arr)
             target_dtof=orig_target_dtof;
             
             % choose gate to fit
-            mask=zeros(num_gate,num_SDS_tr);
-            if choose_gate_manually==0
-                for s=1:num_SDS_tr
-                    dtof=target_dtof(:,s);
-                    [max_value,index]=max(dtof);
-                    for g=1:num_gate
-                        if g<index
-                            mask(g,s)=dtof(g)>=0.5*max_value;
-                        else
-                            mask(g,s)=dtof(g)>=0.0001*max_value;
+            if tr_flag
+                mask=zeros(num_gate,num_SDS_tr);
+                if choose_gate_flag
+                    mask(gate_choosed,:)=1;
+                else
+                    for s=1:num_SDS_tr
+                        dtof=target_dtof(:,s);
+                        [max_value,index]=max(dtof);
+                        for g=1:num_gate
+                            if g<index
+                                mask(g,s)=dtof(g)>=0.5*max_value;
+                            else
+                                mask(g,s)=dtof(g)>=0.0001*max_value;
+                            end
                         end
                     end
                 end
-            elseif choose_gate_manually==1
-                mask(gate_choosed,:)=1;
             end
                 
-            
             % assign weight
-            if use_weight==1 
+            if cw_flag && tr_flag && sys_weight_flag==1
                 weight=[length(lambda)*length(SDS_choosed_cw) sum(mask(:,SDS_choosed_tr),'all')];
-            elseif isempty(SDS_choosed_cw)
-                weight=[0 1];
-            elseif isempty(SDS_choosed_tr)
-                weight=[1 0];
-            else
+            elseif cw_flag && tr_flag && sys_weight_flag==0
                 weight=[1 1];
+            elseif ~cw_flag && tr_flag
+                weight=[0 1];
+            elseif cw_flag && ~tr_flag
+                weight=[1 0];
             end
             
             % assign weight to gate (if needed edit here)
-            if use_gate_weight==1
+            if tr_flag && gate_weight_flag
                 for s=weight_SDS
                     for g=weight_gate
                         mask(g,s)=weight_value;
@@ -188,12 +216,19 @@ for sbj=1:length(subject_name_arr)
             end
             fclose(fid);
             save(fullfile(thisSpec_outputDir,'init_arr.txt'),'to_save','-ascii','-tabs');
-            save(fullfile(thisSpec_outputDir,'mask.mat'),'mask');
-            save(fullfile(thisSpec_outputDir,'weight.txt'),'weight','-ascii','-tabs');
+            if cw_flag && tr_flag
+                save(fullfile(thisSpec_outputDir,'fitting_info.mat'),'cw_flag','tr_flag','SDS_choosed_cw','SDS_choosed_tr','mask','weight');
+            elseif cw_flag && ~tr_flag
+                save(fullfile(thisSpec_outputDir,'fitting_info.mat'),'cw_flag','tr_flag','SDS_choosed_cw','mask','weight');
+            elseif ~cw_flag && tr_flag
+                save(fullfile(thisSpec_outputDir,'fitting_info.mat'),'cw_flag','tr_flag','SDS_choosed_tr','mask','weight');
+            else
+                error('Please choose at least one system to fit.');
+            end
 
             % start fitting using different init value
             for fitting_i=1:times_to_fitting
-                had_fitted=exist(fullfile(thisSpec_outputDir,['fitting_' num2str(fitting_i)],'fitted_spec.txt'),'file');
+                had_fitted=exist(fullfile(thisSpec_outputDir,['fitting_' num2str(fitting_i)],'fitted_spec.txt'),'file') | exist(fullfile(thisSpec_outputDir,['fitting_' num2str(fitting_i)],'fitted_dtof.txt'),'file');
                 if had_fitted~=0
                     fprintf('Skip %s\n',fullfile(thisSpec_outputDir,['fitting_' num2str(fitting_i)]));
                 end
@@ -202,7 +237,7 @@ for sbj=1:length(subject_name_arr)
 
                     fun_auto_fittingMuaMus(init_arr(fitting_i,:),fullfile(thisSpec_outputDir,['fitting_' num2str(fitting_i)]));
                     
-                    had_fitted=exist(fullfile(thisSpec_outputDir,['fitting_' num2str(fitting_i)],'fitted_spec.txt'),'file');
+                    had_fitted=exist(fullfile(thisSpec_outputDir,['fitting_' num2str(fitting_i)],'fitted_spec.txt'),'file') | exist(fullfile(thisSpec_outputDir,['fitting_' num2str(fitting_i)],'fitted_dtof.txt'),'file');
                 end
            end
         end

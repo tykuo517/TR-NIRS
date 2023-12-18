@@ -10,29 +10,26 @@ clc;clear;close all; clearvars -global;
 global lambda cw_net cw_param_range tr_net tr_param_range 
 
 %% param
-input_dir='test_fitting_2023-11-02-11-10-06'; % please move the fitting folders into this folder first.
-subject_name_arr={'KB'}; %,'WH','WW'
+input_dir='test_fitting_2023-12-12-11-59-43'; % please move the fitting folders into this folder first.
+subject_name_arr={'KB','WH','ZJ'}; %,'WH','WW'
 num_anser_to_generate=10; % number of target spec (true answer)
-num_error_to_generate=15; % number of adding noise to the same, the first one will have no error
+num_error_to_generate=1; % number of adding noise to the same, the first one will have no error
 times_to_fitting=20; % number of fitting using different init value
 
-fitting_dir='fitting_SDS_234_gw_7'; % the fitting folder
+fitting_dir='fitting_tr1234_gate12'; % the fitting folder
 
-mode=2; % Fitting mode 1:TR+CW, 2:TR, 3:CW
+do_plot_anyPlot=0; % =1 to plot any plot
+do_plot_individual_fitting=1; % =1 to plot the result of each individual fitting
 
 % CW setting
 num_SDS_cw=6; % how many SDS are in the target spectrum
-SDS_choosed_cw=[]; % the SDS chosen to fitted in the target spectrum
 SDS_sim_correspond_cw=[1 2 3 4 5 6]; % the SDS index in the simulated spectrum corresponding to each SDS in the target spectrum, SDS_sim_correspond(x)=y means 'measure x = sim y'
 
 % TR setting
 num_SDS_tr=5;
-SDS_choosed_tr=[2 3 4]; % the SDS chosen to fitted in the target spectrum
+num_gate=10;
 SDS_sim_correspond_tr=[1 2 3 4 5]; % the SDS index in the simulated spectrum corresponding to each SDS in the target spectrum, SDS_sim_correspond(x)=y means 'measure x = sim y'
 
-num_gate=10;
-% gate_choosed=[1 2 3 4 5];
-% gate_sim_correspond=[1 2 3 4 5 6 7 8 9 10];
 
 % other setting
 num_fitted_param=13; % the number of the fitted parameters
@@ -44,9 +41,6 @@ fitting_wl_file='fitting_wl.txt'; % the file in the epsilon folder containing th
 fitting_wl_tr=810;
 
 model_dir='model_arrange'; % the folder containing the arranged ANN file
-
-do_plot_anyPlot=0; % =1 to plot any plot
-do_plot_individual_fitting=1; % =1 to plot the result of each individual fitting
 
 fontSize=12;
 lineWidth=2;
@@ -79,8 +73,6 @@ for i=1:num_anser_to_generate
     temp_OP_arr=load(fullfile(input_dir,'answers',['OP_ans_' num2str(i) '.txt']));
     OP_answer_arr(:,:,i)=interp1(temp_OP_arr(:,1),temp_OP_arr(:,2:end),lambda);
 end
-% OP_answer_arr=OP_answer_arr(:,[3 5 9],:);
-% OP_answer_arr=OP_answer_arr(:,[2 3 4],:);
 
 %% main
 
@@ -108,8 +100,12 @@ for sbj=1:length(subject_name_arr)
             target_dtof=load(fullfile(input_dir,subject_name_arr{sbj},['target_' num2str(target_i) '_' num2str(error_i)],'target_dtof.txt'));
 
             init_param_arr=load(fullfile(temp_target_folder,'init_arr.txt'));
-            load(fullfile(temp_target_folder,'mask.mat'));
-            weight=load(fullfile(temp_target_folder,'weight.txt'));
+            load(fullfile(temp_target_folder,'fitting_info.mat'));
+            if cw_flag && ~tr_flag
+                SDS_choosed_tr=[];
+            elseif ~cw_flag && tr_flag
+                SDS_choosed_cw=[];
+            end
             
             fitting_result=[];
             fitting_op_arr=[];
@@ -126,68 +122,103 @@ for sbj=1:length(subject_name_arr)
             for j=1:times_to_fitting
                 fprintf('%d ',j);
                 
-%                 if j==1
-%                     SDS_choosed=load(fullfile(temp_target_folder,['fitting_' num2str(j)],'setting_record.mat'),'SDS_choosed');
-%                     SDS_choosed=SDS_choosed.SDS_choosed; % the SDS chosen to fitted in the target spectrum
-%                 end
-
-                % load the fitting result
+                % loaf the fitting result
                 temp_route=load(fullfile(temp_target_folder,['fitting_' num2str(j)],'fitRoute.txt'));
                 fitting_result(j,1:num_fitted_param+num_SDS_cw+num_SDS_tr+3)=temp_route(end,:); % the fitted param
                 fitting_op_arr(:,:,j)=load(fullfile(temp_target_folder,['fitting_' num2str(j)],'fitted_mu.txt'));
-                fitted_ann_spec_arr(:,:,j)=load(fullfile(temp_target_folder,['fitting_' num2str(j)],'fitted_spec.txt'));
-                fitted_ann_dtof_arr_2D(:,:,j)=load(fullfile(temp_target_folder,['fitting_' num2str(j)],'fitted_dtof.txt'));
                 
-                
-                % forward the init param and calculate the error
-                % for CW
+                %% forward the init param and calculate the error
                 [OP_arr,~]=fun_param_to_mu(init_param_arr(j,1:num_fitted_param),0);
-                init_ann_spec=fun_ANN_forward(OP_arr,0);
-                init_ann_spec_arr(:,:,j)=init_ann_spec(:,SDS_sim_correspond_cw);
                 
-                calculated_init_error=sqrt(mean((init_ann_spec_arr(:,:,j)./interped_target_spec-1).^2,1));
-                calculated_fitted_error=sqrt(mean((fitted_ann_spec_arr(:,:,j)./interped_target_spec-1).^2,1));
-                init_error(1)=sqrt(mean(calculated_init_error(SDS_choosed_cw).^2));
-                fitted_error(1)=sqrt(mean(calculated_fitted_error(SDS_choosed_cw).^2));
-                
-                % for TR
-                temp_OP_arr=[lambda OP_arr];
-                OP_arr=interp1(temp_OP_arr(:,1),temp_OP_arr(:,2:end),fitting_wl_tr);
-                init_ann_dtof_1D=fun_ANN_forward(OP_arr,1);
-                for i=1:num_SDS_tr
-                    init_ann_dtof(:,i)=init_ann_dtof_1D((i-1)*num_gate+1:i*num_gate)';
-                end
-                init_ann_dtof_arr(:,:,j)=init_ann_dtof(:,SDS_sim_correspond_tr);
-                
-                
-                select_gate=sum(mask,1);
-                calculated_init_error_tr=init_ann_dtof_arr(:,:,j)./target_dtof-1;
-                calculated_init_error_tr=calculated_init_error_tr.*mask;  % choose gate
-                calculated_init_error_tr=sqrt(sum(calculated_init_error_tr.^2,1)./select_gate);
-                calculated_fitted_error_tr=fitted_ann_dtof_arr_2D(:,:,j)./target_dtof(:,:)-1;
-                calculated_fitted_error_2D_arr(:,:,j)=calculated_fitted_error_tr; % save errors
-                calculated_fitted_error_tr=calculated_fitted_error_tr.*mask;  % choose gate
-                calculated_fitted_error_tr=sqrt((sum(calculated_fitted_error_tr.^2,1)./select_gate));
-                init_error(2)=sqrt(mean(calculated_init_error_tr(SDS_choosed_tr).^2));
-                fitted_error(2)=sqrt(mean(calculated_fitted_error_tr(SDS_choosed_tr).^2));
+                % CW
+                if cw_flag
+                    init_ann_spec=fun_ANN_forward(OP_arr,0);
+                    init_ann_spec_arr(:,:,j)=init_ann_spec(:,SDS_sim_correspond_cw);
 
+                    calculated_init_error=sqrt(mean((init_ann_spec_arr(:,:,j)./interped_target_spec-1).^2,1));
+                    init_error(1)=sqrt(mean(calculated_init_error(SDS_choosed_cw).^2));
+                else
+                    calculated_init_error=NaN*ones(1,num_SDS_cw);
+                    init_error(1)=NaN;
+                end
                 
-                % save the errors
-%                 init_error_all=sum(init_error(~isnan(init_error)));
-%                 fitted_error_all=sum(fitted_error(~isnan(fitted_error)));
+                % TR
+                if tr_flag
+                    temp_OP_arr=[lambda OP_arr];
+                    OP_arr=interp1(temp_OP_arr(:,1),temp_OP_arr(:,2:end),fitting_wl_tr);
+                    init_ann_dtof_1D=fun_ANN_forward(OP_arr,1);
+                    for i=1:num_SDS_tr
+                        init_ann_dtof(:,i)=init_ann_dtof_1D((i-1)*num_gate+1:i*num_gate)';
+                    end
+                    init_ann_dtof_arr(:,:,j)=init_ann_dtof(:,SDS_sim_correspond_tr);
+
+                    select_gate=sum(mask,1);
+                    calculated_init_error_tr=init_ann_dtof_arr(:,:,j)./target_dtof-1;
+                    calculated_init_error_tr=calculated_init_error_tr.*mask;  % choose gate
+                    calculated_init_error_tr=sqrt(sum(calculated_init_error_tr.^2,1)./select_gate);
+                    init_error(2)=sqrt(mean(calculated_init_error_tr(SDS_choosed_tr).^2));
+                else
+                    calculated_init_error_tr=NaN*ones(1,num_SDS_tr);
+                    init_error(2)=NaN;
+                end
                 
+                % all
                 temp_init_error=init_error;
                 temp_init_error(isnan(temp_init_error))=0;
                 init_error_all=(temp_init_error(1).*weight(1)+temp_init_error(2).*weight(2))/sum(weight);
+
+                init_param_arr(j,num_fitted_param+1:num_fitted_param+num_SDS_cw+num_SDS_tr+3)=[calculated_init_error calculated_init_error_tr init_error init_error_all];
+                
+                
+                %% Calculate the fitted error
+                if cw_flag
+                    fitted_ann_spec_arr(:,:,j)=load(fullfile(temp_target_folder,['fitting_' num2str(j)],'fitted_spec.txt'));
+                    calculated_fitted_error=sqrt(mean((fitted_ann_spec_arr(:,:,j)./interped_target_spec-1).^2,1));
+                    fitted_error(1)=sqrt(mean(calculated_fitted_error(SDS_choosed_cw).^2));
+                else
+                    % use ANN to get supposed spectra
+                    fitted_op=squeeze(fitting_op_arr(:,:,j));
+                    fitted_ann_spec=fun_ANN_forward(fitted_op,0);
+                    fitted_ann_spec_arr(:,:,j)=fitted_ann_spec(:,SDS_sim_correspond_cw);
+                    calculated_fitted_error=sqrt(mean((fitted_ann_spec_arr(:,:,j)./interped_target_spec-1).^2,1));
+                    fitted_error(1)=NaN;
+                end
+
+                if tr_flag
+                    fitted_ann_dtof_arr_2D(:,:,j)=load(fullfile(temp_target_folder,['fitting_' num2str(j)],'fitted_dtof.txt'));
+                    calculated_fitted_error_tr=fitted_ann_dtof_arr_2D(:,:,j)./target_dtof(:,:)-1;
+                    calculated_fitted_error_2D_arr(:,:,j)=calculated_fitted_error_tr; % save errors
+                    calculated_fitted_error_tr=calculated_fitted_error_tr.*mask;  % choose gate
+                    calculated_fitted_error_tr=sqrt((sum(calculated_fitted_error_tr.^2,1)./select_gate));
+                    fitted_error(2)=sqrt(mean(calculated_fitted_error_tr(SDS_choosed_tr).^2));
+                else
+                    % use ANN to get supposed DTOFs
+                    fitted_op=squeeze(fitting_op_arr(:,:,j));
+                    fitted_op=interp1(lambda,fitted_op,fitting_wl_tr);
+                    fitted_ann_dtof=fun_ANN_forward(fitted_op,1);
+                    for i=1:num_SDS_tr
+                        fitted_ann_dtof_arr(:,i)=fitted_ann_dtof((i-1)*num_gate+1:(i-1)*num_gate+num_gate)';
+                    end
+                    fitted_ann_dtof_arr_2D(:,:,j)=fitted_ann_dtof_arr;
+                    
+                    % Calculate for drawing 
+                    calculated_fitted_error_tr=fitted_ann_dtof_arr_2D(:,:,j)./target_dtof(:,:)-1;
+                    calculated_fitted_error_2D_arr(:,:,j)=calculated_fitted_error_tr; % save errors
+                    calculated_fitted_error_tr=sqrt((mean(calculated_fitted_error_tr.^2,1)));
+                    fitted_error(2)=NaN;
+                end
+                
                 temp_fitted_error=fitted_error;
                 temp_fitted_error(isnan(temp_fitted_error))=0;
                 fitted_error_all=(temp_fitted_error(1).*weight(1)+temp_fitted_error(2).*weight(2))/sum(weight);
+                    
+
+                %% save the errors
                 fitting_result(j,num_fitted_param+1:num_fitted_param+num_SDS_cw+num_SDS_tr+3)=[calculated_fitted_error calculated_fitted_error_tr fitted_error fitted_error_all];
                 init_param_arr(j,num_fitted_param+1:num_fitted_param+num_SDS_cw+num_SDS_tr+3)=[calculated_init_error calculated_init_error_tr init_error init_error_all];
                 
                 % calculate the param and OP answer
-%                 calculated_param_error_arr(j,:)=fitting_result(j,1:num_fitted_param)./param_answer_arr(target_i,:)-1;
-                if mode==2 % fitting only TR
+                if ~cw_flag && tr_flag % fitting only TR
                     fitting_op=interp1(lambda,fitting_op_arr(:,:,j),fitting_wl_tr,'pchip');
                     OP_answer=interp1(lambda,OP_answer_arr(:,:,target_i),fitting_wl_tr,'pchip');
                     calculated_OP_error=sqrt(mean((fitting_op./OP_answer-1).^2,1));
@@ -336,7 +367,7 @@ for sbj=1:length(subject_name_arr)
                 print(fullfile(temp_target_folder,'fitted_spec.png'),'-dpng','-r200');
 %                 close all;
                 
-                %% plot the fitted spec error together (for TR)
+                %% plot the fitted dtof error together (for TR)
                 fprintf('Plot the fitted error\n');
                 legend_arr={'target'};
                 for j=16:20 %1:times_to_fitting
@@ -393,9 +424,10 @@ for sbj=1:length(subject_name_arr)
                         yLimits = ylim;
                         xPatch = [x1, x2, x2, x1];
                         yPatch = [min(ylim), min(ylim),max(ylim), max(ylim)];
-                        p=patch(xPatch, yPatch, [0.69, 0.93, 0.93],'FaceAlpha',0.2,'EdgeColor','none');
+                        p=patch(xPatch, yPatch, [0.69, 0.93, 0.93],'FaceAlpha',0.4,'EdgeColor','none');
                         p.Annotation.LegendInformation.IconDisplayStyle = 'off';
                         uistack(p,"bottom");
+                        ylim(yLimits);
                     end
                 end
 
@@ -466,61 +498,64 @@ for sbj=1:length(subject_name_arr)
 
             %% plot the fitted spec
             if do_plot_individual_fitting && do_plot_anyPlot
-                % CW
-%                 for jj=1:times_to_fitting % the rank
-                for jj=1:1 % the rank
-                    fprintf('Plot %s fitting %d\n',subject_name_arr{sbj},jj);
-                    j=error_index(jj); % the index of fitting
-                    fig=figure('Units','pixels','position',[0 0 1600 900]);
-                    set(fig,'visible','off');
-                    ti=tiledlayout('flow','TileSpacing','compact','Padding','none');
-                    
-                    for s=1:num_SDS_cw
-                        nexttile();
-                        hold on;
-                        plot(target_spec(:,1),target_spec(:,s+1),'LineWidth',lineWidth);
-                        plot(lambda,init_ann_spec_arr(:,s,j),'LineWidth',lineWidth);
-                        plot(lambda,fitted_ann_spec_arr(:,s,j),'LineWidth',lineWidth);
-                        grid on;
+                
+                if cw_flag
+    %                 for jj=1:times_to_fitting % the rank
+                    for jj=1:1 % the rank
+                        fprintf('Plot %s fitting %d\n',subject_name_arr{sbj},jj);
+                        j=error_index(jj); % the index of fitting
+                        fig=figure('Units','pixels','position',[0 0 1600 900]);
+                        set(fig,'visible','off');
+                        ti=tiledlayout('flow','TileSpacing','compact','Padding','none');
 
-                        lgd=legend({'target',['init, err=' num2str(init_param_arr(j,num_fitted_param+s)*100,'%.2f%%')],['fitted, err=' num2str(fitting_result(j,num_fitted_param+s)*100,'%.2f%%')]},'Location','southoutside');
-                        lgd.NumColumns=3;
-                        title(['SDS ' num2str(SDS_length_arr_cw(s)) ' cm']);
-                        set(gca,'fontsize',fontSize, 'FontName', 'Times New Roman');
+                        for s=1:num_SDS_cw
+                            nexttile();
+                            hold on;
+                            plot(target_spec(:,1),target_spec(:,s+1),'LineWidth',lineWidth);
+                            plot(lambda,init_ann_spec_arr(:,s,j),'LineWidth',lineWidth);
+                            plot(lambda,fitted_ann_spec_arr(:,s,j),'LineWidth',lineWidth);
+                            grid on;
+
+                            lgd=legend({'target',['init, err=' num2str(init_param_arr(j,num_fitted_param+s)*100,'%.2f%%')],['fitted, err=' num2str(fitting_result(j,num_fitted_param+s)*100,'%.2f%%')]},'Location','southoutside');
+                            lgd.NumColumns=3;
+                            title(['SDS ' num2str(SDS_length_arr_cw(s)) ' cm']);
+                            set(gca,'fontsize',fontSize, 'FontName', 'Times New Roman');
+                        end
+
+                        title(ti,[strrep(subject_name_arr{sbj},'_',' ') ' target ' num2str(target_i) ' error ' num2str(error_i) ', rank ' num2str(jj) ' = fitting ' num2str(j) ', fitting error = ' num2str(fitting_result(j,num_fitted_param+num_SDS_cw+num_SDS_tr+1)*100,'%.2f%%')], 'FontName', 'Times New Roman');
+                        print(fullfile(temp_target_folder,['fitted_spec_r' num2str(jj) '_f' num2str(j) '.png']),'-dpng','-r200');
+    %                     close all;
                     end
-                    
-                    title(ti,[strrep(subject_name_arr{sbj},'_',' ') ' target ' num2str(target_i) ' error ' num2str(error_i) ', rank ' num2str(jj) ' = fitting ' num2str(j) ', fitting error = ' num2str(fitting_result(j,num_fitted_param+num_SDS_cw+num_SDS_tr+1)*100,'%.2f%%')], 'FontName', 'Times New Roman');
-                    print(fullfile(temp_target_folder,['fitted_spec_r' num2str(jj) '_f' num2str(j) '.png']),'-dpng','-r200');
-%                     close all;
                 end
                 
-                % TR
-                %         for jj=1:times_to_fitting % the rank
-                for jj=1:1 % the rank
-                    fprintf('Plot %s fitting %d\n',subject_name_arr{sbj},jj);
-                    j=error_index(jj); % the index of fitting
-                    fig=figure('Units','pixels','position',[0 0 1600 900]);
-                    set(fig,'visible','off');
-                    ti=tiledlayout('flow','TileSpacing','compact','Padding','none');
-                    
-                    for s=1:num_SDS_tr
-                        nexttile();
-                        semilogy(1:1:num_gate,target_dtof(:,s),'LineWidth',lineWidth);
-                        hold on;
-                        semilogy(1:1:num_gate,init_ann_dtof_arr(:,s,j),'LineWidth',lineWidth);
-                        hold on;
-                        semilogy(1:1:num_gate,fitted_ann_dtof_arr_2D(:,s,j),'LineWidth',lineWidth);
-                        grid on;
+                if tr_flag
+                    %         for jj=1:times_to_fitting % the rank
+                    for jj=1:1 % the rank
+                        fprintf('Plot %s fitting %d\n',subject_name_arr{sbj},jj);
+                        j=error_index(jj); % the index of fitting
+                        fig=figure('Units','pixels','position',[0 0 1600 900]);
+                        set(fig,'visible','off');
+                        ti=tiledlayout('flow','TileSpacing','compact','Padding','none');
 
-                        lgd=legend({'target',['init, err=' num2str(init_param_arr(j,num_fitted_param+num_SDS_cw+s)*100,'%.2f%%')],['fitted, err=' num2str(fitting_result(j,num_fitted_param+num_SDS_cw+s)*100,'%.2f%%')]},'Location','southoutside');
-                        lgd.NumColumns=3;
-    %                         title(['SDS ' num2str(SDS_length_arr(s)) ' cm']);
-                        set(gca,'fontsize',fontSize, 'FontName', 'Times New Roman');
+                        for s=1:num_SDS_tr
+                            nexttile();
+                            semilogy(1:1:num_gate,target_dtof(:,s),'LineWidth',lineWidth);
+                            hold on;
+                            semilogy(1:1:num_gate,init_ann_dtof_arr(:,s,j),'LineWidth',lineWidth);
+                            hold on;
+                            semilogy(1:1:num_gate,fitted_ann_dtof_arr_2D(:,s,j),'LineWidth',lineWidth);
+                            grid on;
+
+                            lgd=legend({'target',['init, err=' num2str(init_param_arr(j,num_fitted_param+num_SDS_cw+s)*100,'%.2f%%')],['fitted, err=' num2str(fitting_result(j,num_fitted_param+num_SDS_cw+s)*100,'%.2f%%')]},'Location','southoutside');
+                            lgd.NumColumns=3;
+        %                         title(['SDS ' num2str(SDS_length_arr(s)) ' cm']);
+                            set(gca,'fontsize',fontSize, 'FontName', 'Times New Roman');
+                        end
+
+                        title(ti,[strrep(subject_name_arr{sbj},'_',' ') ' target ' num2str(target_i) ' error ' num2str(error_i) ', rank ' num2str(jj) ' = fitting ' num2str(j) ', fitting error = ' num2str(fitting_result(j,num_fitted_param+num_SDS_cw+num_SDS_tr+2)*100,'%.2f%%')], 'FontName', 'Times New Roman');
+                        print(fullfile(temp_target_folder,['fitted_spec_r' num2str(jj) '_f' num2str(j) '_tr.png']),'-dpng','-r200');
+    %                     close all;
                     end
-                    
-                    title(ti,[strrep(subject_name_arr{sbj},'_',' ') ' target ' num2str(target_i) ' error ' num2str(error_i) ', rank ' num2str(jj) ' = fitting ' num2str(j) ', fitting error = ' num2str(fitting_result(j,num_fitted_param+num_SDS_cw+num_SDS_tr+2)*100,'%.2f%%')], 'FontName', 'Times New Roman');
-                    print(fullfile(temp_target_folder,['fitted_spec_r' num2str(jj) '_f' num2str(j) '_tr.png']),'-dpng','-r200');
-%                     close all;
                 end
             end
         end

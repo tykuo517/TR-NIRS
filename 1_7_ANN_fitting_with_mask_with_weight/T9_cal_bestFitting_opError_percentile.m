@@ -12,7 +12,7 @@ global lambda net param_range
 %% param
 Add_error_mode=1; % if =0, use result without error; =1 to use results with error
 
-input_dir='test_fitting_2023-11-02-11-10-06'; % please move the fitting folders into this folder first.
+input_dir='test_fitting_2023-12-12-11-59-43'; % please move the fitting folders into this folder first.
 subject_name_arr={'KB'};
 num_anser_to_generate=10; % number of target spec (true answer)
 num_error_to_generate=15; % number of adding noise to the same, the first one will have no error

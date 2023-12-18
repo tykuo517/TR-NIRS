@@ -22,7 +22,7 @@ fitting_SDS_dir_arr={'fitting_cw1','fitting_cw12','fitting_cw123','fitting_cw123
 
 fitting_dir_index=[1 1 1 1 1 1];  %[1 1 1 1 1 1];
 add_noise_arr=[0 0 0 0 0 0];   %0 0 0 0 0 0];
-fitting_name_arr={'1 SDS','2 SDS','3 SDS','4 SDS','5 SDS','6 SDS'}; %'SDS 12 merged no noise',
+fitting_name_arr={'one SDS','one SDS','3','4','1','2','3','4','1','2','3','4','1','2','3','4'}; %'SDS 12 merged no noise',
 
 OP_param={'\mu_{a,scalp}','\mu_{s,scalp}','\mu_{a,skull}','\mu_{s,skull}','\mu_{a,GM}','\mu_{s,GM}'};
 
@@ -104,48 +104,47 @@ end
 % plot RMSE in line chart
 % RMSE_arr=[RMSE_arr; 0.1839 0.0747 0.3852 0.1419 0.2665 0.6902];
 figure('Position',[0 0 640 480]);
-line_prop={'--*','-x','--square','-diamond','--pentagram','-v'};
+line_prop={'*','x','square','diamond','^','v'};
 y=100*RMSE_arr;
 for p=1:size(RMSE_arr,2)
-    plot(y(:,p),line_prop{p},'Linewidth',1.2);
+    plot(RMSE(:,p),line_prop{p});
     hold on
 end
-xticks(1:6);
 xlabel('number of SDS');
 ylabel('RMSE (%)');
-legend(OP_param,'Location','northeast');
+legend([fitting_name_arr 'CW'],'Location','northwest');
 mkdir('results')
-print(fullfile('results','OP_result_RMSE_line.png'),'-dpng','-r200');
+print(fullfile('results','OP_result_RMSE_bar.png'),'-dpng','-r200');
 
 
-% % heatmap for TR data (num_SDS and num_gate used for fitting)
-% sub_index=[1 4 2 5 3 6];
-% fig=figure('Position',[0 0 1920 1080]);
-% ti=tiledlayout(fig,2,3);
-% h=gobjects(6,1);
-% for p=1:size(RMSE_arr,2)
-%     ax=nexttile(sub_index(p));
-%     temp_to_plot=100*RMSE_arr(:,p);
-%     to_plot=reshape(temp_to_plot,4,4);
-% %     h=redbluecmap(to_plot);
-%     h(p)=heatmap(to_plot,'Colormap', parula,'YData', ["2" "4" "6" "8"],'ColorbarVisible','off','FontSize',14);
-%     title(OP_param{p});
-%     xlabel('number of SDS');
-%     ylabel('number of gate');
-%     h(p).YDisplayData=flipud(h(p).YDisplayData);
-%     grid off
-% end
-% 
-% colorLims=vertcat(h.ColorLimits);
-% globalColorLim=[min(colorLims(:,1)), max(colorLims(:,2))];
-% set(h,'ColorLimits', globalColorLim);
-% 
-% ax=axes(ti,'visible','off','Colormap',h(1).Colormap,'CLim',globalColorLim,'FontSize',14);
-% cb=colorbar(ax);
-% ylabel(cb,'(%)','FontSize',16,'Rotation',270);
-% cb.Label.Position(1) = 5;
-% cb.Layout.Tile='East';
-% print(fullfile('results',['OP_result_RMSE_bar_op.png']),'-dpng','-r200');
+% heatmap for TR data (num_SDS and num_gate used for fitting)
+sub_index=[1 4 2 5 3 6];
+fig=figure('Position',[0 0 1920 1080]);
+ti=tiledlayout(fig,2,3);
+h=gobjects(6,1);
+for p=1:size(RMSE_arr,2)
+    ax=nexttile(sub_index(p));
+    temp_to_plot=100*RMSE_arr(:,p);
+    to_plot=reshape(temp_to_plot,4,4);
+%     h=redbluecmap(to_plot);
+    h(p)=heatmap(to_plot,'Colormap', parula,'YData', ["2" "4" "6" "8"],'ColorbarVisible','off','FontSize',14);
+    title(OP_param{p});
+    xlabel('number of SDS');
+    ylabel('number of gate');
+    h(p).YDisplayData=flipud(h(p).YDisplayData);
+    grid off
+end
+
+colorLims=vertcat(h.ColorLimits);
+globalColorLim=[min(colorLims(:,1)), max(colorLims(:,2))];
+set(h,'ColorLimits', globalColorLim);
+
+ax=axes(ti,'visible','off','Colormap',h(1).Colormap,'CLim',globalColorLim,'FontSize',14);
+cb=colorbar(ax);
+ylabel(cb,'(%)','FontSize',16,'Rotation',270);
+cb.Label.Position(1) = 5;
+cb.Layout.Tile='East';
+print(fullfile('results',['OP_result_RMSE_bar_op.png']),'-dpng','-r200');
 
 
 %% output the confidence interval

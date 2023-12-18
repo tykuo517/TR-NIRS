@@ -13,16 +13,16 @@ global lambda net param_range
 error_range_threshold=0.005; % plot the fitting in this distance to the best result
 max_choose_number=1; % the max number of fitting
 
-input_dir='test_fitting_2023-11-02-11-10-06'; % please move the fitting folders into this folder first.
-subject_name_arr={'KB'};%'KB','WH','WW'
-do_use_add_error=1; % if =1, calculate the OP error of the added noise results; if =0, calculate the error without noise
+input_dir='test_fitting_2023-12-12-11-59-43'; % please move the fitting folders into this folder first.
+subject_name_arr={'KB','WH','ZJ'};%'KB','WH','WW'
+do_use_add_error=0; % if =1, calculate the OP error of the added noise results; if =0, calculate the error without noise
 num_anser_to_generate=10; % number of target spec (true answer)
-num_error_to_generate=15; % number of adding noise to the same, the first one will have no error
+num_error_to_generate=1; % number of adding noise to the same, the first one will have no error
 times_to_fitting=20; % number of fitting using different init value
 
-fitting_dir='fitting_SDS_234_gw_7';
+fitting_dir='fitting_tr1234_gate12';
 
-mode=2; % Fitting mode 1:TR+CW, 2:TR, 3:CW
+% mode=2; % Fitting mode 1:TR+CW, 2:TR, 3:CW
 
 % CW setting
 num_SDS_cw=6; % how many SDS are in the target spectrum
@@ -115,6 +115,7 @@ for sbj=1:length(subject_name_arr)
             temp_target_folder=fullfile(input_dir,subject_name_arr{sbj},['target_' num2str(target_i) '_' num2str(error_i)],fitting_dir);
             
             temp_fitting_result=load(fullfile(temp_target_folder,'fitting_result_sort.txt'));
+            load(fullfile(temp_target_folder,'fitting_info.mat'));
             orig_init_index=temp_fitting_result(:,1);
             temp_fitting_result=temp_fitting_result(:,2:end);
             fitted_result_arr(:,:,error_i)=temp_fitting_result;
@@ -132,7 +133,7 @@ for sbj=1:length(subject_name_arr)
                 temp_fitted_OP=load(fullfile(temp_target_folder,['fitting_' num2str(orig_init_index(i))],'fitted_mu.txt'));
                 temp_fitted_OP=temp_fitted_OP(:,OP_column_arr);
                 OP_answer=OP_answer_arr(:,:,target_i);
-                if mode==2 % fitting only TR
+                if ~cw_flag && tr_flag % fitting only TR
                     temp_fitted_OP=interp1(lambda,temp_fitted_OP,fitting_wl_tr,'pchip');
                     OP_answer=interp1(lambda,OP_answer,fitting_wl_tr,'pchip');
                 end

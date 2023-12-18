@@ -10,7 +10,7 @@ clc;clear;close all;
 global lambda Lbound Ubound net param_range;
 
 %% param 
-subject_name_arr={'KB'};
+subject_name_arr={'KB','WH','ZJ'};
 num_anser_to_generate=15; % number of target spec (true answer)
 num_error_to_generate=15; % number of adding noise to the same, the first one will have no error
 num_SDS_cw=6;
@@ -19,7 +19,7 @@ num_SDS_tr=5;
 num_gate=10;
 SDS_dist_arr_tr=[1.5 2.2 2.9 3.6 4.3]; % cm
 SDS_dist_arr_cw=[0.8 1.5 2.12 3 3.35 4.5 4.74]; % cm; % cm
-input_dir='test_fitting_2023-11-02-11-10-06';
+input_dir='test_fitting_2023-12-11-11-36-30';
 
 %% main
 for sbj=1:length(subject_name_arr)
@@ -74,7 +74,7 @@ for sbj=1:length(subject_name_arr)
             yyaxis right
             plot(1:1:10,cv_dtof(:,s)*100);
             ylabel('CV (%)');
-            set(gca,'fontsize',10, 'FontName', 'Times New Roman');
+            set(gca,'fontsize',17, 'FontName', 'Times New Roman');
             grid on;
         end
         title(ti,[subject_name_arr{sbj} ' target ' num2str(target_i)],'fontsize',10);
